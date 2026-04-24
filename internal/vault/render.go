@@ -3,47 +3,48 @@ package vault
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 )
 
-const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-)
-
-// RenderDiff writes a human-readable diff of a DiffResult to the given writer.
-func RenderDiff(w io.Writer, result DiffResult, envA, envB string, useColor bool) {
-	if len(result.OnlyInA) == 0 && len(result.OnlyInB) == 0 && len(result.Changed) == 0 {
-		fmt.Fprintln(w, "No differences found.")
+// RenderDiff writes a human-readable diff to w.
+func RenderDiff(w io.Writer, label string, diffs []DiffResult) {
+	if len(diffs) == 0 {
+		fmt.Fprintf(w, "No differences found for %s\n", label)
 		return
 	}
 
-	for _, k := range result.OnlyInA {
-		line := fmt.Sprintf("- [%s only] %s", envA, k)
-		fmt.Fprintln(w, colorize(line, colorRed, useColor))
-	}
+	fmt.Fprintf(w, "Diff for %s:\n", label)
+	fmt.Fprintln(w, strings.Repeat("-", 40))
 
-	for _, k := range result.OnlyInB {
-		line := fmt.Sprintf("+ [%s only] %s", envB, k)
-		fmt.Fprintln(w, colorize(line, colorGreen, useColor))
-	}
+	sorted := make([]DiffResult, len(diffs))
+	copy(sorted, diffs)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Key < sorted[j].Key
+	})
 
-	for _, k := range result.InBoth {
-		if vals, ok := result.Changed[k]; ok {
-			sep := strings.Repeat("-", 40)
-			fmt.Fprintln(w, colorize(sep, colorYellow, useColor))
-			fmt.Fprintln(w, colorize(fmt.Sprintf("~ %s", k), colorYellow, useColor))
-			fmt.Fprintln(w, colorize(fmt.Sprintf("  %s: %s", envA, vals[0]), colorRed, useColor))
-			fmt.Fprintln(w, colorize(fmt.Sprintf("  %s: %s", envB, vals[1]), colorGreen, useColor))
+	for _, d := range sorted {
+		switch {
+		case d.ValueA == "" && d.ValueB != "":
+			fmt.Fprintf(w, "%s  %s: (missing) -> %q\n", colorize("+", "green"), d.Key, d.ValueB)
+		case d.ValueA != "" && d.ValueB == "":
+			fmt.Fprintf(w, "%s  %s: %q -> (missing)\n", colorize("-", "red"), d.Key, d.ValueA)
+		default:
+			fmt.Fprintf(w, "%s  %s: %q -> %q\n", colorize("~", "yellow"), d.Key, d.ValueA, d.ValueB)
 		}
 	}
 }
 
-func colorize(s, color string, useColor bool) string {
-	if !useColor {
-		return s
+// colorize wraps text in ANSI color codes.
+func colorize(text, color string) string {
+	codes := map[string]string{
+		"red":    "\033[31m",
+		"green":  "\033[32m",
+		"yellow": "\033[33m",
 	}
-	return color + s + colorReset
+	reset := "\033[0m"
+	if code, ok := codes[color]; ok {
+		return code + text + reset
+	}
+	return text
 }
