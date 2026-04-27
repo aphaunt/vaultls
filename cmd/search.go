@@ -28,6 +28,11 @@ func init() {
 func runSearch(cmd *cobra.Command, args []string) error {
 	path := args[0]
 
+	// Require at least one search filter to avoid unintentionally listing all secrets.
+	if searchValueQuery == "" && searchQuery == "" {
+		return fmt.Errorf("at least one of --key or --value must be specified")
+	}
+
 	client, err := vault.NewClient(
 		os.Getenv("VAULT_ADDR"),
 		os.Getenv("VAULT_TOKEN"),
