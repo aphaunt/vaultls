@@ -56,6 +56,13 @@ func TestRollbackSecret_InvalidVersion(t *testing.T) {
 	}
 }
 
+func TestRollbackSecret_NilClient(t *testing.T) {
+	_, err := RollbackSecret(context.Background(), nil, "secret/foo", 1)
+	if err == nil {
+		t.Fatal("expected error for nil client")
+	}
+}
+
 func TestSplitMount(t *testing.T) {
 	mount, path := splitMount("secret/foo/bar")
 	if mount != "secret" || path != "foo/bar" {
