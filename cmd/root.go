@@ -36,8 +36,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&vaultAddr, "addr", "", "Vault server address (overrides VAULT_ADDR)")
 	rootCmd.PersistentFlags().StringVar(&vaultToken, "token", "", "Vault token (overrides VAULT_TOKEN)")
 
-	viper.BindPFlag("vault.addr", rootCmd.PersistentFlags().Lookup("addr"))
-	viper.BindPFlag("vault.token", rootCmd.PersistentFlags().Lookup("token"))
+	if err := viper.BindPFlag("vault.addr", rootCmd.PersistentFlags().Lookup("addr")); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to bind flag 'addr': %v\n", err)
+	}
+	if err := viper.BindPFlag("vault.token", rootCmd.PersistentFlags().Lookup("token")); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to bind flag 'token': %v\n", err)
+	}
 }
 
 func initConfig() {
