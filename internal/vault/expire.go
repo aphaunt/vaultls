@@ -17,7 +17,9 @@ type SecretExpiry struct {
 }
 
 // ExpireSecrets reads secrets at path and returns expiry info based on
-// a custom metadata key "expires_at" (RFC3339 format).
+// a custom metadata key "expires_at" (RFC3339 format). The path should
+// be in the form "<mount>/<secret-path>", e.g. "secret/myapp/db".
+// Keys without a parseable "expires_at" value are silently skipped.
 func ExpireSecrets(ctx context.Context, client *vaultapi.Client, path string, now time.Time) ([]SecretExpiry, error) {
 	if path == "" {
 		return nil, fmt.Errorf("path must not be empty")
@@ -58,6 +60,17 @@ func ExpireSecrets(ctx context.Context, client *vaultapi.Client, path string, no
 		})
 	}
 	return results, nil
+}
+
+// FilterExpired returns only the SecretExpiry entries that have already expired.
+func FilterExpired(secrets []SecretExpiry) []SecretExpiry {
+	var expired []SecretExpiry
+	for _, s := range secrets {
+		if s.Expired {
+			expired = append(expired, s)
+		}
+	}
+	return expired
 }
 
 func extractExpireMount(path string) (string, string) {
