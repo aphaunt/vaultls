@@ -32,7 +32,10 @@ func ScaffoldSecrets(ctx context.Context, client *api.Client, opts ScaffoldOptio
 
 	// Check existence unless overwrite is set.
 	if !opts.Overwrite {
-		existing, _ := client.Logical().ReadWithContext(ctx, dataPath)
+		existing, err := client.Logical().ReadWithContext(ctx, dataPath)
+		if err != nil {
+			return nil, fmt.Errorf("scaffold existence check failed: %w", err)
+		}
 		if existing != nil {
 			return nil, fmt.Errorf("secret already exists at %q; use --overwrite to replace", opts.Path)
 		}
