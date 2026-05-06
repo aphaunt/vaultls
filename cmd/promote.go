@@ -26,6 +26,10 @@ func runPromote(cmd *cobra.Command, args []string) error {
 	srcPath := args[0]
 	dstPath := args[1]
 
+	if srcPath == dstPath {
+		return fmt.Errorf("source and destination paths must be different: %q", srcPath)
+	}
+
 	client, err := vault.NewClient(
 		cmd.Root().PersistentFlags().Lookup("address").Value.String(),
 		cmd.Root().PersistentFlags().Lookup("token").Value.String(),
@@ -36,7 +40,7 @@ func runPromote(cmd *cobra.Command, args []string) error {
 
 	result, err := vault.PromoteSecrets(cmd.Context(), client, srcPath, dstPath, promoteOverwrite)
 	if err != nil {
-		return err
+		return fmt.Errorf("promoting secrets from %q to %q: %w", srcPath, dstPath, err)
 	}
 
 	w := os.Stdout
