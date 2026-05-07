@@ -3,77 +3,74 @@ package vault
 import (
 	"context"
 	"fmt"
-	"sort"
 
-	vaultapi "github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/api"
 )
 
-// PathDiff represents the structural difference between two Vault paths.
-type PathDiff struct {
-	OnlyInA  []string
-	OnlyInB  []string
-	InBoth   []string
+// DiffPathsResult holds the result of comparing two vault paths.
+type DiffPathsResult struct {
+	OnlyInA []string
+	OnlyInB []string
+	InBoth  []string
 }
 
-// DiffPaths compares the list of keys at two Vault paths and returns a PathDiff.
-func DiffPaths(ctx context.Context, client *vaultapi.Client, pathA, pathB string) (*PathDiff, error) {
-	if pathA == "" || pathB == "" {
-		return nil, fmt.Errorf("both paths must be non-empty")
+// DiffPaths compares the keys at two vault paths and returns which keys
+// are unique to each path and which are shared.
+func DiffPaths(ctx context.Context, client *api.Client, pathA, pathB string) (*DiffPathsResult, error) {
+	if pathA == "" {
+		return nil, fmt.Errorf("pathA must not be empty")
+	}
+	if pathB == "" {
+		return nil, fmt.Errorf("pathB must not be empty")
 	}
 
 	keysA, err := listKeys(ctx, client, pathA)
 	if err != nil {
-		return nil, fmt.Errorf("listing path %q: %w", pathA, err)
+		return nil, fmt.Errorf("listing keys at %s: %w", pathA, err)
 	}
 
 	keysB, err := listKeys(ctx, client, pathB)
 	if err != nil {
-		return nil, fmt.Errorf("listing path %q: %w", pathB, err)
+		return nil, fmt.Errorf("listing keys at %s: %w", pathB, err)
 	}
 
 	setA := toStringSet(keysA)
 	setB := toStringSet(keysB)
 
-	diff := &PathDiff{}
-
+	result := &DiffPathsResult{}
 	for k := range setA {
 		if setB[k] {
-			diff.InBoth = append(diff.InBoth, k)
+			result.InBoth = append(result.InBoth, k)
 		} else {
-			diff.OnlyInA = append(diff.OnlyInA, k)
+			result.OnlyInA = append(result.OnlyInA, k)
 		}
 	}
 	for k := range setB {
 		if !setA[k] {
-			diff.OnlyInB = append(diff.OnlyInB, k)
+			result.OnlyInB = append(result.OnlyInB, k)
 		}
 	}
-
-	sort.Strings(diff.OnlyInA)
-	sort.Strings(diff.OnlyInB)
-	sort.Strings(diff.InBoth)
-
-	return diff, nil
+	return result, nil
 }
 
-func listKeys(ctx context.Context, client *vaultapi.Client, path string) ([]string, error) {
+func listKeys(ctx context.Context, client *api.Client, path string) ([]string, error) {
 	secret, err := client.Logical().ListWithContext(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	if secret == nil || secret.Data == nil {
-		return []string{}, nil
+		return nil, nil
 	}
 	raw, ok := secret.Data["keys"]
 	if !ok {
-		return []string{}, nil
+		return nil, nil
 	}
-	ifaces, ok := raw.([]interface{})
+	iface, ok := raw.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected keys format at %q", path)
+		return nil, fmt.Errorf("unexpected keys type")
 	}
-	keys := make([]string, 0, len(ifaces))
-	for _, v := range ifaces {
+	keys := make([]string, 0, len(iface))
+	for _, v := range iface {
 		if s, ok := v.(string); ok {
 			keys = append(keys, s)
 		}
@@ -82,9 +79,9 @@ func listKeys(ctx context.Context, client *vaultapi.Client, path string) ([]stri
 }
 
 func toStringSet(keys []string) map[string]bool {
-	m := make(map[string]bool, len(keys))
+	s := make(map[string]bool, len(keys))
 	for _, k := range keys {
-		m[k] = true
+		s[k] = true
 	}
-	return m
+	return s
 }
